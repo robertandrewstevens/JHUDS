@@ -1,0 +1,38 @@
+Johns Hopkins University Data Science Coursera MOOC
+Peer-graded Assignment: Getting and Cleaning Data Course Project
+
+1.0 indicate all the variables and summaries calculated, along with units
+
+1.1 activity [chr]: derived from activity code (1-6)
+    1 WALKING
+    2 WALKING_UPSTAIRS
+    3 WALKING_DOWNSTAIRS
+    4 SITTING
+    5 STANDING
+    6 LAYING
+
+1.2 subject [int]: volunteer subject identifier (1-30)
+
+1.3 variable [Factor]: feature measuring mean or standard deviation from "features.txt"
+
+1.4 average [num]: average value of variable, in same units as the feature, either acceleration (g = m/s^2) or velocity (radians/second)
+
+2.0 other relevant information
+
+2.1 Merges the training and the test sets to create one data set and appropriately labels the data set with descriptive variable names.
+2.1.1 read data
+2.1.2 rename variables
+2.1.3 merge data (rbind)
+2.1.3 merge data (cbind)
+
+2.2 Extracts only the measurements on the mean and standard deviation for each measurement.
+2.2.1 select variables with 'mean(' or 'std(' in name using regex functions
+
+2.3 Uses descriptive activity names to name the activities in the data set
+2.3.1 add column for activity (from 'activity_labels.txt')
+
+2.4 From the data set in step 4, creates a second, independent tidy data set with the average of each variable for each activity and each subject.
+2.4.1 melt variable and value by activity and subject
+2.4.2 group_by (activity, subject and variable) and summarize (mean of value)
+
+2.5 Save results in TXT file
