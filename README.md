@@ -2,13 +2,13 @@
 
 Johns Hopkins University Data Science Coursera MOOC
 
-`codebook.txt`
+`codebook.txt` - for "Getting and Cleaning Data Course Project" (class 3)
 
 1. indicate all the variables and summaries calculated, along with units
 
 2. other relevant information
 
-`run_analysis.R`
+`run_analysis.R` - for "Getting and Cleaning Data Course Project" (class 3)
 
 1. Merges the training and the test sets to create one data set
 
