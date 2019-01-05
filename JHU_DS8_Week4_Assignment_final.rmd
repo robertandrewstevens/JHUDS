@@ -1,0 +1,225 @@
+---
+title: "Peer-graded Assignment: Prediction Assignment Writeup"
+author: "Robert A. Stevens"
+date: '2019-01-04'
+output:
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  comment = NA,
+  fig.width = 11,
+  fig.height = 8.5
+)
+
+library(tidyverse)
+library(caret)
+library(gbm)
+library(skimr)
+library(lubridate)
+```
+
+## Executive Summary
+
+Created a prediction model to predict outcomes for 20 samples by:
+
+1. Importing training and testing data
+
+2. Tidying the training and testing data
+
+3. Transforming the training and testing data
+
+4. Summarizing the training data
+
+5. Modeling the training data and evaluating the in-sample and out-of-sample errors
+
+6. Communicating the 20 predicted outcomes
+
+## Import
+
+Downloaded training data from: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+Downloaded testing data from: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r}
+training <- read.csv("pml-training.csv", as.is = TRUE) # prevent character variables from being converted to factors
+testing  <- read.csv("pml-testing.csv", as.is = TRUE)  # prevent character variables from being converted to factors
+```
+
+## Tidy
+
+Remove row counter "X" from both training and testing data frames and convert `classe` from a character to a factor:
+
+```{r}
+training$X <- NULL
+testing$X <- NULL
+
+training$classe <- as.factor(training$classe)
+```
+
+## Transform
+
+Identify uninformative variables in`training` using `nearZeroVar` function:
+
+```{r}
+training_nzv <- nearZeroVar(training, saveMetrics = TRUE)
+training_nzv[training_nzv$nzv, ]
+```
+
+Remove uninformative variables from `training` and save as `training2`:
+
+```{r}
+training2 <- training %>% 
+  dplyr::select(names(training)[!training_nzv$nzv])
+```
+
+Create indicator variables for `user_name` so they can be used in machine learning algorithms and remove `user_name`:
+
+```{r}
+train_users <- dummyVars(
+  ~ user_name,
+  data = training2
+)
+
+test_users <- dummyVars(
+  ~ user_name,
+  data = testing
+)
+
+train_usersVar <- data.frame(predict(train_users, newdata = training2))
+test_usersVar  <- data.frame(predict(test_users, newdata = testing))
+
+training2 <- data.frame(train_usersVar[ , -1], training2[ , -1]) 
+testing2  <- data.frame(test_usersVar[ , -1], testing[ , -1]) 
+```
+
+Convert `cvtd_timestamp` from character to numeric:
+
+```{r}
+training2$cvtd_timestamp <- as.numeric(ymd_hms(training2$cvtd_timestamp))
+testing2$cvtd_timestamp  <- as.numeric(ymd_hms(testing2$cvtd_timestamp))
+```
+
+Eliminate variables with significant missing values:
+
+```{r}
+training2 <- training2[colSums(is.na(training2))/nrow(training2) < 0.1]
+```
+
+Create training and testing subsets from `training2` to evaluate in-sample and out-of-sample error:
+
+```{r}
+set.seed(123)
+
+use <- createDataPartition(
+  y = training2$classe,
+  p = 0.70,
+  list = FALSE
+)
+use_train <- training2[ use, ]
+use_test  <- training2[-use, ]
+```
+
+## Summarize
+
+With 62 variables left in the training set, detailed visualizations would require many pages of output and would likely not be informative for such high-dimensional data. So instead a simple table and summary statistics are provided.
+
+Table of outcome factor `classe` level counts:
+
+```{r}
+table(use_train$classe)
+```
+
+Summary of all variables used in training set:
+
+```{r}
+skim_with(integer = list(hist = NULL, p25 = NULL, p75 = NULL), numeric = list(hist = NULL, p25 = NULL, p75 = NULL)) 
+use_train %>% skim() %>% kable()
+```
+
+## Model
+
+**Correlation analysis:**
+
+```{r}
+M <- abs(cor(use_train[, -62]))
+diag(M) <- 0 # remove 1s on diag
+rc <- which(M > 0.8, arr.ind = TRUE)
+rc
+dim(rc)
+```
+
+46 pairs of input variables have correlation coefficients greater than 0.8.
+
+**Prediction model:**
+
+Used Gradient Boosted Model (`gbm`) with Principle Component Analysis (PCA) using centered and scaled input variables:
+
+- PCA was used due to the high number of input variables pairs with correlation coefficients greater than 0.8 (46)
+
+- Centering and scaling were used to eliminate the risk of some variables dominating due to their measurement scale
+
+- `gmb` was used because it generally provides better results than Recursive Partitioning (`rpart`) and Random Forest (`rf`) methods, two other methods appropriate for multivariate outcome classification problems (and `rf` never finished on my PC)
+
+```{r}
+set.seed(123)
+
+modelFit <- train(
+  classe ~ .,
+  method = "gbm",
+  preProcess = c("center", "scale", "pca"),
+  verbose = FALSE,
+  data = use_train
+)
+```
+
+The final model identified 26 PCA predictors from the 61 input variables:
+
+```{r}
+modelFit$finalModel
+```
+
+Relative Influence of 26 Principle Components (PCs):
+
+```{r}
+relInf <- summary(modelFit, plotit = FALSE)
+relInf
+
+relInf$var <- factor(relInf$var, levels = relInf$var[order(relInf$rel.inf)])
+ggplot(relInf, aes(rel.inf, var)) +
+  geom_point()
+```
+
+In-sample error from training set: 
+
+```{r}
+confusionMatrix(
+  use_train$classe,
+  predict(modelFit, use_train)
+)
+```
+
+The overall in-sample accuracy is 86%.
+
+Expected out-of-sample error from test set: 
+
+```{r}
+confusionMatrix(
+  use_test$classe,
+  predict(modelFit, use_test)
+)
+```
+
+The overall out-of-sample accuracy is 82%.
+
+## Communicate
+
+Using prediction model to predict 20 different test cases:
+
+```{r}
+testing$pred <- predict(modelFit, testing2)
+testing[ , c("problem_id", "pred")]
+```
